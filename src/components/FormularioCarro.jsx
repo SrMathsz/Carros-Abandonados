@@ -1,0 +1,205 @@
+import { useEffect, useState } from 'react';
+import { supabase } from '../supabaseClient.js';
+import { formatarPlaca, placaValida } from '../lib/placa.js';
+import { reduzirImagem } from '../lib/imagem.js';
+import { enderecoPorCoordenada } from '../lib/geocode.js';
+
+export default function FormularioCarro({ ponto, erroLocalizacao, aoUsarLocalizacao, aoCancelar, aoEnviado }) {
+  const [foto, setFoto] = useState(null);
+  const [previa, setPrevia] = useState(null);
+  const [placa, setPlaca] = useState('');
+  const [descricao, setDescricao] = useState('');
+  const [endereco, setEndereco] = useState('');
+  const [enderecoEditado, setEnderecoEditado] = useState(false);
+  const [buscandoEndereco, setBuscandoEndereco] = useState(false);
+  const [erro, setErro] = useState('');
+  const [enviando, setEnviando] = useState(false);
+
+  // Libera a memória da prévia da foto
+  useEffect(() => {
+    return () => {
+      if (previa) URL.revokeObjectURL(previa);
+    };
+  }, [previa]);
+
+  // Sugere o endereço quando o pino muda (com uma pequena espera para não
+  // consultar o serviço a cada movimento ao arrastar o pino)
+  useEffect(() => {
+    if (!ponto || enderecoEditado) return undefined;
+    let cancelado = false;
+    const espera = setTimeout(() => {
+      setBuscandoEndereco(true);
+      enderecoPorCoordenada(ponto.lat, ponto.lng)
+        .then((texto) => {
+          if (!cancelado && texto) setEndereco(texto);
+        })
+        .catch(() => {})
+        .finally(() => {
+          if (!cancelado) setBuscandoEndereco(false);
+        });
+    }, 600);
+    return () => {
+      cancelado = true;
+      clearTimeout(espera);
+    };
+  }, [ponto, enderecoEditado]);
+
+  function escolherFoto(e) {
+    const arquivo = e.target.files && e.target.files[0];
+    if (!arquivo) return;
+    setFoto(arquivo);
+    setPrevia(URL.createObjectURL(arquivo));
+  }
+
+  async function enviar(e) {
+    e.preventDefault();
+    setErro('');
+
+    const desc = descricao.trim();
+    const end = endereco.trim();
+    if (!ponto) return setErro('Marque no mapa onde o carro está.');
+    if (desc.length < 2) return setErro('Descreva o carro com modelo e cor.');
+    if (end.length < 3) return setErro('Informe o endereço aproximado.');
+    if (placa && !placaValida(placa)) return setErro('A placa parece incompleta. Confira ou deixe em branco.');
+
+    setEnviando(true);
+    try {
+      const id = crypto.randomUUID();
+      let fotoPath = null;
+
+      if (foto) {
+        const blob = await reduzirImagem(foto);
+        const caminho = `${id}.jpg`;
+        const { error: erroFoto } = await supabase.storage
+          .from('fotos')
+          .upload(caminho, blob, { contentType: 'image/jpeg' });
+        if (erroFoto) throw erroFoto;
+        fotoPath = caminho;
+      }
+
+      // Sem .select() de propósito: o cidadão pode inserir, mas não ler registros.
+      const { error: erroInsert } = await supabase.from('registros').insert({
+        id,
+        endereco: end,
+        descricao: desc,
+        placa: placa || null,
+        lat: ponto.lat,
+        lng: ponto.lng,
+        foto_path: fotoPath,
+      });
+      if (erroInsert) throw erroInsert;
+
+      aoEnviado();
+    } catch (err) {
+      console.error(err);
+      setErro('Não foi possível enviar agora. Confira a conexão e tente de novo.');
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  return (
+    <aside className="side" aria-label="Novo registro">
+      <h2>Novo registro</h2>
+      <form className="form" onSubmit={enviar} noValidate>
+        <div className="field">
+          <span className="lbl">Foto do carro</span>
+          <label className="drop-zone" htmlFor="f-foto">
+            <input className="sr" type="file" id="f-foto" accept="image/*" capture="environment" onChange={escolherFoto} />
+            {previa ? (
+              <img src={previa} alt="Foto escolhida do carro" />
+            ) : (
+              <span className="drop-texto">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M4 8h3l1.5-2h7L17 8h3v11H4z" />
+                  <circle cx="12" cy="13" r="3.5" />
+                </svg>
+                <span>Tirar ou enviar foto</span>
+              </span>
+            )}
+          </label>
+        </div>
+
+        <div className="field">
+          <label className="lbl" htmlFor="f-placa">
+            Placa (se estiver visível)
+          </label>
+          <input
+            type="text"
+            id="f-placa"
+            className="campo-placa"
+            maxLength={8}
+            autoComplete="off"
+            autoCapitalize="characters"
+            placeholder="ABC-1234"
+            value={placa}
+            onChange={(e) => setPlaca(formatarPlaca(e.target.value))}
+          />
+        </div>
+
+        <div className="field">
+          <label className="lbl" htmlFor="f-descricao">
+            Carro
+          </label>
+          <input
+            type="text"
+            id="f-descricao"
+            autoComplete="off"
+            maxLength={120}
+            placeholder="Ex.: Versa azul"
+            value={descricao}
+            onChange={(e) => setDescricao(e.target.value)}
+          />
+        </div>
+
+        <div className="field">
+          <label className="lbl" htmlFor="f-endereco">
+            Endereço {buscandoEndereco && <span className="buscando">buscando…</span>}
+          </label>
+          <input
+            type="text"
+            id="f-endereco"
+            autoComplete="off"
+            maxLength={200}
+            placeholder="Rua e número aproximado"
+            value={endereco}
+            onChange={(e) => {
+              setEndereco(e.target.value);
+              setEnderecoEditado(e.target.value.trim() !== '');
+            }}
+          />
+        </div>
+
+        <div className="loc">
+          <p className="locstat">
+            <span className="dot-key" style={{ background: ponto ? 'var(--accent)' : 'var(--muted)' }} />
+            {ponto ? 'Ponto marcado. Arraste o pino ou toque em outro lugar para ajustar.' : 'Nenhum ponto marcado no mapa'}
+          </p>
+          <button type="button" className="btn" onClick={aoUsarLocalizacao}>
+            Usar minha localização
+          </button>
+          {erroLocalizacao && <p className="err">{erroLocalizacao}</p>}
+        </div>
+
+        {erro && (
+          <p className="err" role="alert">
+            {erro}
+          </p>
+        )}
+
+        <p className="privacidade">
+          A foto e os dados ficam visíveis apenas para a equipe da prefeitura. Outras pessoas veem somente um ponto no mapa.
+        </p>
+
+        <div className="formactions">
+          <button type="submit" className="btn primary" disabled={enviando}>
+            {enviando ? 'Enviando…' : 'Enviar registro'}
+          </button>
+          <button type="button" className="btn" onClick={aoCancelar} disabled={enviando}>
+            Cancelar
+          </button>
+        </div>
+      </form>
+    </aside>
+  );
+}
