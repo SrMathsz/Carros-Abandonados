@@ -377,24 +377,6 @@ input {
   max-height: 240px;
   object-fit: cover;
 }
-.busca-linha {
-  display: flex;
-  gap: 8px;
-}
-.busca-linha input {
-  flex: 1;
-  min-width: 0;
-}
-.busca-linha .btn {
-  flex: none;
-  padding: 0 14px;
-  font-size: 14px;
-}
-.ajuda {
-  margin: 0;
-  font-size: 12.5px;
-  color: var(--muted);
-}
 .foto-acoes {
   display: grid;
   grid-template-columns: 1fr 1fr;

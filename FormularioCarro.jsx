@@ -2,9 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../supabaseClient.js';
 import { formatarPlaca, placaValida } from '../lib/placa.js';
 import { reduzirImagem } from '../lib/imagem.js';
-import { buscarEndereco, enderecoPorCoordenada } from '../lib/geocode.js';
+import { enderecoPorCoordenada } from '../lib/geocode.js';
 
-export default function FormularioCarro({ ponto, erroLocalizacao, aoUsarLocalizacao, aoLocalizarRua, aoCancelar, aoEnviado }) {
+export default function FormularioCarro({ ponto, erroLocalizacao, aoUsarLocalizacao, aoCancelar, aoEnviado }) {
   const [foto, setFoto] = useState(null);
   const [previa, setPrevia] = useState(null);
   const [placa, setPlaca] = useState('');
@@ -14,8 +14,6 @@ export default function FormularioCarro({ ponto, erroLocalizacao, aoUsarLocaliza
   const [buscandoEndereco, setBuscandoEndereco] = useState(false);
   const [erro, setErro] = useState('');
   const [enviando, setEnviando] = useState(false);
-  const [procurandoRua, setProcurandoRua] = useState(false);
-  const [msgRua, setMsgRua] = useState('');
   const cameraRef = useRef(null);
   const galeriaRef = useRef(null);
 
@@ -61,32 +59,6 @@ export default function FormularioCarro({ ponto, erroLocalizacao, aoUsarLocaliza
     setErro('');
     setFoto(arquivo);
     setPrevia(URL.createObjectURL(arquivo));
-  }
-
-  // Procura a rua digitada e leva o mapa até ela. A pessoa toca no ponto exato depois.
-  async function procurarRua() {
-    const texto = endereco.trim();
-    setMsgRua('');
-    if (texto.length < 3) {
-      setMsgRua('Digite o nome da rua para procurar.');
-      return;
-    }
-    setProcurandoRua(true);
-    try {
-      const resultado = await buscarEndereco(texto);
-      if (!resultado) {
-        setMsgRua('Não encontrei essa rua. Confira o nome ou tente só o nome da rua, sem o número.');
-        return;
-      }
-      setEnderecoEditado(true); // mantém o que a pessoa digitou
-      aoLocalizarRua(resultado);
-      setMsgRua('Rua encontrada. Toque no mapa no ponto onde o carro está.');
-    } catch (err) {
-      console.error(err);
-      setMsgRua('Não foi possível procurar agora. Toque direto no mapa para marcar o local.');
-    } finally {
-      setProcurandoRua(false);
-    }
   }
 
   function removerFoto() {
@@ -222,35 +194,20 @@ export default function FormularioCarro({ ponto, erroLocalizacao, aoUsarLocaliza
 
         <div className="field">
           <label className="lbl" htmlFor="f-endereco">
-            Rua ou endereço {buscandoEndereco && <span className="buscando">buscando…</span>}
+            Endereço {buscandoEndereco && <span className="buscando">buscando…</span>}
           </label>
-          <div className="busca-linha">
-            <input
-              type="text"
-              id="f-endereco"
-              autoComplete="off"
-              maxLength={200}
-              placeholder="Ex.: Rua Erasmo"
-              value={endereco}
-              onChange={(e) => {
-                setEndereco(e.target.value);
-                setEnderecoEditado(e.target.value.trim() !== '');
-              }}
-              onKeyDown={(e) => {
-                // Enter procura a rua em vez de enviar o formulário
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  procurarRua();
-                }
-              }}
-            />
-            <button type="button" className="btn" onClick={procurarRua} disabled={procurandoRua}>
-              {procurandoRua ? 'Procurando…' : 'Buscar rua'}
-            </button>
-          </div>
-          <p className="ajuda" role="status">
-            {msgRua || 'Digite a rua e toque em Buscar. O mapa vai até ela e você toca no ponto onde o carro está.'}
-          </p>
+          <input
+            type="text"
+            id="f-endereco"
+            autoComplete="off"
+            maxLength={200}
+            placeholder="Rua e número aproximado"
+            value={endereco}
+            onChange={(e) => {
+              setEndereco(e.target.value);
+              setEnderecoEditado(e.target.value.trim() !== '');
+            }}
+          />
         </div>
 
         <div className="loc">
