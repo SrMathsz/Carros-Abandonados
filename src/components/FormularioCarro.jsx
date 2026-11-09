@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../supabaseClient.js';
 import { formatarPlaca, placaValida } from '../lib/placa.js';
 import { reduzirImagem } from '../lib/imagem.js';
@@ -14,6 +14,8 @@ export default function FormularioCarro({ ponto, erroLocalizacao, aoUsarLocaliza
   const [buscandoEndereco, setBuscandoEndereco] = useState(false);
   const [erro, setErro] = useState('');
   const [enviando, setEnviando] = useState(false);
+  const cameraRef = useRef(null);
+  const galeriaRef = useRef(null);
 
   // Libera a memória da prévia da foto
   useEffect(() => {
@@ -44,11 +46,24 @@ export default function FormularioCarro({ ponto, erroLocalizacao, aoUsarLocaliza
     };
   }, [ponto, enderecoEditado]);
 
+  // Serve para os dois botões: o da câmera e o da galeria
   function escolherFoto(e) {
     const arquivo = e.target.files && e.target.files[0];
+    // Limpa o campo para permitir escolher o mesmo arquivo de novo depois
+    e.target.value = '';
     if (!arquivo) return;
+    if (!arquivo.type.startsWith('image/')) {
+      setErro('Escolha um arquivo de imagem.');
+      return;
+    }
+    setErro('');
     setFoto(arquivo);
     setPrevia(URL.createObjectURL(arquivo));
+  }
+
+  function removerFoto() {
+    setFoto(null);
+    setPrevia(null);
   }
 
   async function enviar(e) {
@@ -68,7 +83,14 @@ export default function FormularioCarro({ ponto, erroLocalizacao, aoUsarLocaliza
       let fotoPath = null;
 
       if (foto) {
-        const blob = await reduzirImagem(foto);
+        let blob;
+        try {
+          blob = await reduzirImagem(foto);
+        } catch (errFoto) {
+          console.error(errFoto);
+          setErro('Não foi possível ler esta foto. Tente outra ou tire uma nova.');
+          return;
+        }
         const caminho = `${id}.jpg`;
         const { error: erroFoto } = await supabase.storage
           .from('fotos')
@@ -104,20 +126,38 @@ export default function FormularioCarro({ ponto, erroLocalizacao, aoUsarLocaliza
       <form className="form" onSubmit={enviar} noValidate>
         <div className="field">
           <span className="lbl">Foto do carro</span>
-          <label className="drop-zone" htmlFor="f-foto">
-            <input className="sr" type="file" id="f-foto" accept="image/*" capture="environment" onChange={escolherFoto} />
-            {previa ? (
+
+          {/* Dois campos escondidos: o da câmera (capture) e o da galeria (sem capture) */}
+          <input ref={cameraRef} hidden type="file" id="f-camera" accept="image/*" capture="environment" onChange={escolherFoto} />
+          <input ref={galeriaRef} hidden type="file" id="f-galeria" accept="image/*" onChange={escolherFoto} />
+
+          {previa ? (
+            <div className="foto-previa">
               <img src={previa} alt="Foto escolhida do carro" />
-            ) : (
-              <span className="drop-texto">
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M4 8h3l1.5-2h7L17 8h3v11H4z" />
-                  <circle cx="12" cy="13" r="3.5" />
-                </svg>
-                <span>Tirar ou enviar foto</span>
-              </span>
-            )}
-          </label>
+            </div>
+          ) : (
+            <div className="foto-vazia">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M4 8h3l1.5-2h7L17 8h3v11H4z" />
+                <circle cx="12" cy="13" r="3.5" />
+              </svg>
+              <span>Nenhuma foto escolhida</span>
+            </div>
+          )}
+
+          <div className="foto-acoes">
+            <button type="button" className="btn" onClick={() => cameraRef.current && cameraRef.current.click()}>
+              {previa ? 'Tirar outra' : 'Tirar foto'}
+            </button>
+            <button type="button" className="btn" onClick={() => galeriaRef.current && galeriaRef.current.click()}>
+              {previa ? 'Outra da galeria' : 'Escolher da galeria'}
+            </button>
+          </div>
+          {previa && (
+            <button type="button" className="btn-sair foto-remover" onClick={removerFoto}>
+              Remover foto
+            </button>
+          )}
         </div>
 
         <div className="field">
