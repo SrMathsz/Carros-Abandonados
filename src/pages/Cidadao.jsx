@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { CircleMarker, Marker, Tooltip, useMap, useMapEvents } from 'react-leaflet';
 import MapaBase, { iconePin } from '../components/MapaBase.jsx';
 import FormularioCarro from '../components/FormularioCarro.jsx';
@@ -13,11 +13,13 @@ function CliqueNoMapa({ ativo, aoClicar }) {
   return null;
 }
 
-// Move o mapa só quando a pessoa usa a localização do aparelho
+// Move o mapa quando a pessoa usa a localização do aparelho ou busca uma rua
 function VoarPara({ foco }) {
   const mapa = useMap();
   useEffect(() => {
-    if (foco) mapa.flyTo([foco.lat, foco.lng], Math.max(mapa.getZoom(), 17));
+    if (!foco) return;
+    if (foco.limites) mapa.fitBounds(foco.limites, { padding: [30, 30], maxZoom: 18 });
+    else mapa.flyTo([foco.lat, foco.lng], Math.max(mapa.getZoom(), 17));
   }, [foco, mapa]);
   return null;
 }
@@ -29,6 +31,13 @@ export default function Cidadao() {
   const [foco, setFoco] = useState(null);
   const [erroLocalizacao, setErroLocalizacao] = useState('');
   const [aviso, setAviso] = useState('');
+  const mapaRef = useRef(null);
+
+  // Leva o mapa até a rua buscada e, no celular, rola a tela até ele
+  function irParaRua(resultado) {
+    setFoco(resultado);
+    if (mapaRef.current) mapaRef.current.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }
 
   const carregarPublicos = useCallback(async () => {
     if (!supabase) return;
@@ -74,7 +83,7 @@ export default function Cidadao() {
     <section>
       <div className={`stage ${aberto ? 'has-side' : ''}`}>
         <div className="col">
-          <div className="mapwrap">
+          <div className="mapwrap" ref={mapaRef}>
             <MapaBase classe={aberto ? 'adicionando' : ''}>
               <CliqueNoMapa ativo={aberto} aoClicar={setPonto} />
               <VoarPara foco={foco} />
@@ -127,6 +136,7 @@ export default function Cidadao() {
             ponto={ponto}
             erroLocalizacao={erroLocalizacao}
             aoUsarLocalizacao={usarLocalizacao}
+            aoLocalizarRua={irParaRua}
             aoCancelar={fechar}
             aoEnviado={enviado}
           />
