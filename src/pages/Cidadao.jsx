@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { CircleMarker, Marker, Tooltip, useMap, useMapEvents } from 'react-leaflet';
-import MapaBase, { iconePin } from '../components/MapaBase.jsx';
+import { Marker, Tooltip, useMap, useMapEvents } from 'react-leaflet';
+import MapaBase, { iconeContador, iconePin } from '../components/MapaBase.jsx';
 import FormularioCarro from '../components/FormularioCarro.jsx';
 import { supabase } from '../supabaseClient.js';
 
@@ -41,7 +41,11 @@ export default function Cidadao() {
 
   const carregarPublicos = useCallback(async () => {
     if (!supabase) return;
-    const { data } = await supabase.from('registros_publicos').select('id,lat,lng,status');
+    let { data, error } = await supabase.from('registros_publicos').select('id,lat,lng,status,total');
+    if (error) {
+      // Banco ainda sem a migração do contador: mostra os pontos sem número
+      ({ data } = await supabase.from('registros_publicos').select('id,lat,lng,status'));
+    }
     setPublicos(data || []);
   }, []);
 
@@ -88,14 +92,9 @@ export default function Cidadao() {
               <CliqueNoMapa ativo={aberto} aoClicar={setPonto} />
               <VoarPara foco={foco} />
               {publicos.map((r) => (
-                <CircleMarker
-                  key={r.id}
-                  center={[r.lat, r.lng]}
-                  radius={7}
-                  pathOptions={{ color: '#ffffff', weight: 2, fillColor: '#8E99A2', fillOpacity: 1 }}
-                >
-                  <Tooltip>Já registrado</Tooltip>
-                </CircleMarker>
+                <Marker key={r.id} position={[r.lat, r.lng]} icon={iconeContador(r.total)}>
+                  <Tooltip>{(r.total || 1) > 1 ? `Já registrado ${r.total} vezes` : 'Já registrado'}</Tooltip>
+                </Marker>
               ))}
               {ponto && (
                 <Marker

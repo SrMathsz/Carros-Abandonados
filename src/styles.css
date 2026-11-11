@@ -16,6 +16,8 @@
   --plate-ink: #14181c;
   --plate-band: #0b3d91;
   --plate-ph: #8d9297;
+  --ponto: #66727c;
+  --ponto-ink: #ffffff;
   --font-display: 'Barlow Condensed', 'Arial Narrow', 'Roboto Condensed', sans-serif;
   --font-body: 'Public Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
@@ -34,6 +36,8 @@
     --st-vistoriado-bg: #2a2347;
     --st-recolhido: #5ccb90;
     --st-recolhido-bg: #12301f;
+    --ponto: #8e99a2;
+    --ponto-ink: #12171b;
     color-scheme: dark;
   }
 }
@@ -193,9 +197,38 @@ input {
 .mapa.adicionando {
   cursor: crosshair;
 }
-.pin-icone {
+.pin-icone,
+.contador-icone {
   background: none;
   border: 0;
+}
+.contador-pin {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: var(--ponto);
+  color: var(--ponto-ink);
+  border: 2px solid var(--surface);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  box-sizing: border-box;
+  font: 700 12px var(--font-body);
+  font-variant-numeric: tabular-nums;
+}
+.contador {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+  border: 1px solid var(--ink);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+.fotos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 6px;
 }
 .maphint,
 .maplegend {

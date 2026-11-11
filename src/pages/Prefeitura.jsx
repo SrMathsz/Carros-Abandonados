@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Marker, useMap } from 'react-leaflet';
 import MapaBase, { iconePin } from '../components/MapaBase.jsx';
 import { Placa, StatusPill } from '../components/Etiquetas.jsx';
 import { supabase } from '../supabaseClient.js';
 import { ORDEM_STATUS, STATUS, dataCompleta, dataCurta } from '../lib/constantes.js';
+import { agrupar } from '../lib/agrupar.js';
 
 /* ------------------------------------------------------------------ */
 /* Login                                                               */
@@ -83,42 +84,59 @@ function IrParaSelecionado({ registro }) {
 /* ------------------------------------------------------------------ */
 /* Detalhe de um registro                                              */
 /* ------------------------------------------------------------------ */
-function Detalhe({ registro, aoMudarStatus }) {
-  const [fotoUrl, setFotoUrl] = useState(null);
+function Detalhe({ grupo, aoMudarStatus }) {
+  const [fotos, setFotos] = useState([]);
+  const caminhos = grupo.itens.map((i) => i.foto_path).filter(Boolean);
+  const chaveFotos = caminhos.join('|');
+  const enderecos = [...new Set(grupo.itens.map((i) => i.endereco))];
 
   useEffect(() => {
     let ativo = true;
-    setFotoUrl(null);
-    if (!registro.foto_path) return undefined;
+    setFotos([]);
+    if (caminhos.length === 0) return undefined;
     supabase.storage
       .from('fotos')
-      .createSignedUrl(registro.foto_path, 3600)
+      .createSignedUrls(caminhos, 3600)
       .then(({ data }) => {
-        if (ativo && data) setFotoUrl(data.signedUrl);
+        if (ativo && data) setFotos(data.filter((f) => f.signedUrl).map((f) => f.signedUrl));
       });
     return () => {
       ativo = false;
     };
-  }, [registro.foto_path]);
+  }, [chaveFotos]);
 
   return (
     <div className="detail">
-      <div className="photo">
-        {fotoUrl ? (
-          <img src={fotoUrl} alt={`Foto do carro em ${registro.endereco}`} />
-        ) : (
-          <span>{registro.foto_path ? 'Carregando foto…' : 'Registro sem foto'}</span>
-        )}
-      </div>
-      <p className="meta">Registrado em {dataCompleta(registro.criado_em)}</p>
+      {fotos.length > 0 ? (
+        <div className="fotos">
+          {fotos.map((url, i) => (
+            <div className="photo" key={url}>
+              <img src={url} alt={`Foto ${i + 1} do carro em ${grupo.endereco}`} />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="photo">
+          <span>{caminhos.length ? 'Carregando foto…' : 'Registro sem foto'}</span>
+        </div>
+      )}
+      {grupo.total > 1 ? (
+        <p className="meta">
+          {grupo.total} registros deste carro. Primeiro em {dataCompleta(grupo.primeiro)}, último em{' '}
+          {dataCompleta(grupo.itens[0].criado_em)}.
+        </p>
+      ) : (
+        <p className="meta">Registrado em {dataCompleta(grupo.criado_em)}</p>
+      )}
+      {enderecos.length > 1 && <p className="meta">Endereços informados: {enderecos.join('; ')}</p>}
       <div className="statusrow" role="group" aria-label="Alterar situação">
         {ORDEM_STATUS.map((s) => (
           <button
             key={s}
             type="button"
             data-status={s}
-            aria-pressed={registro.status === s}
-            onClick={() => aoMudarStatus(registro.id, s)}
+            aria-pressed={grupo.status === s}
+            onClick={() => aoMudarStatus(grupo, s)}
           >
             {STATUS[s]}
           </button>
@@ -126,7 +144,7 @@ function Detalhe({ registro, aoMudarStatus }) {
       </div>
       <a
         className="link-mapa"
-        href={`https://www.google.com/maps/search/?api=1&query=${registro.lat},${registro.lng}`}
+        href={`https://www.google.com/maps/search/?api=1&query=${grupo.lat},${grupo.lng}`}
         target="_blank"
         rel="noopener noreferrer"
       >
@@ -147,6 +165,8 @@ function Painel() {
   const [selecionado, setSelecionado] = useState(null);
   const [aviso, setAviso] = useState('');
   const listaRef = useRef(null);
+  // Um item por carro: registros da mesma placa são juntados, com o total
+  const grupos = useMemo(() => agrupar(registros), [registros]);
 
   const carregar = useCallback(async () => {
     const { data, error } = await supabase.from('registros').select('*').order('criado_em', { ascending: false });
@@ -183,9 +203,11 @@ function Painel() {
     setTimeout(() => setAviso(''), 3500);
   }
 
-  async function mudarStatus(id, status) {
-    setRegistros((lista) => lista.map((r) => (r.id === id ? { ...r, status } : r)));
-    const { error } = await supabase.from('registros').update({ status }).eq('id', id);
+  // Muda a situação de todos os registros do mesmo carro de uma vez
+  async function mudarStatus(grupo, status) {
+    const ids = grupo.ids;
+    setRegistros((lista) => lista.map((r) => (ids.includes(r.id) ? { ...r, status } : r)));
+    const { error } = await supabase.from('registros').update({ status }).in('id', ids);
     if (error) {
       mostrarAviso('Não foi possível alterar a situação.');
       carregar();
@@ -221,8 +243,8 @@ function Painel() {
     );
   }
 
-  const visiveis = registros.filter((r) => filtro === 'todos' || r.status === filtro);
-  const contagem = (s) => registros.filter((r) => s === 'todos' || r.status === s).length;
+  const visiveis = grupos.filter((r) => filtro === 'todos' || r.status === filtro);
+  const contagem = (s) => grupos.filter((r) => s === 'todos' || r.status === s).length;
   const registroSelecionado = visiveis.find((r) => r.id === selecionado) || null;
   const filtros = [['todos', 'Todos'], ...ORDEM_STATUS.map((s) => [s, `${STATUS[s]}s`])];
 
@@ -232,7 +254,7 @@ function Painel() {
         <div className="col">
           <div className="mapwrap">
             <MapaBase>
-              <AjustarVista registros={registros} />
+              <AjustarVista registros={grupos} />
               <IrParaSelecionado registro={registroSelecionado} />
               {visiveis.map((r) => {
                 const escolhido = r.id === selecionado;
@@ -240,10 +262,10 @@ function Painel() {
                   <Marker
                     key={r.id}
                     position={[r.lat, r.lng]}
-                    icon={iconePin(`var(--st-${r.status})`, escolhido ? 1.35 : 1)}
+                    icon={iconePin(`var(--st-${r.status})`, escolhido ? 1.35 : 1, r.total)}
                     zIndexOffset={escolhido ? 1000 : 0}
                     eventHandlers={{ click: () => selecionar(r.id, false) }}
-                    title={`${r.endereco} · ${r.descricao}`}
+                    title={`${r.endereco} · ${r.descricao}${r.total > 1 ? ` · ${r.total} registros` : ''}`}
                   />
                 );
               })}
@@ -296,10 +318,11 @@ function Painel() {
                     <span className="row">
                       <Placa valor={r.placa} />
                       <StatusPill status={r.status} />
+                      {r.total > 1 && <span className="contador">{r.total} registros</span>}
                       <span className="when">{dataCurta(r.criado_em)}</span>
                     </span>
                   </button>
-                  {aberto && <Detalhe registro={r} aoMudarStatus={mudarStatus} />}
+                  {aberto && <Detalhe grupo={r} aoMudarStatus={mudarStatus} />}
                 </article>
               );
             })}

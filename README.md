@@ -66,6 +66,18 @@ Abra o endereço que o terminal mostrar. Para testar no celular, use o endereço
 - A foto é redesenhada antes do envio, o que remove metadados como o GPS embutido.
 - A prefeitura só consegue alterar a coluna `status`.
 
+## Contador de registros por placa
+
+Quando várias pessoas registram o mesmo carro, a placa junta os registros em um só:
+
+- **Cidadão:** o ponto cinza no mapa mostra o número de registros daquele carro.
+- **Prefeitura:** aparece um cartão por carro, com o selo "N registros" e todas as fotos no detalhe. Mudar a situação vale para todos os registros do carro.
+- Registros **sem placa** não são juntados, porque não há como saber se é o mesmo carro.
+- Depois de **recolhido**, se a mesma placa aparecer de novo, vira um caso novo.
+- O número conta registros, não pessoas diferentes: a mesma pessoa pode registrar duas vezes.
+
+Se o banco já foi criado antes dessa versão, rode `supabase/migracao-contador.sql` uma vez no SQL Editor do Supabase.
+
 ## Antes de usar de verdade
 
 Itens que o código não resolve sozinho:

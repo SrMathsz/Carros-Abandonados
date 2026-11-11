@@ -25,6 +25,11 @@ create table if not exists public.registros (
 create index if not exists registros_status_idx on public.registros (status);
 create index if not exists registros_criado_idx on public.registros (criado_em desc);
 
+-- Placa sem hífen, usada para juntar os registros do mesmo carro
+alter table public.registros
+  add column if not exists placa_chave text generated always as (replace(placa, '-', '')) stored;
+create index if not exists registros_placa_chave_idx on public.registros (placa_chave);
+
 -- Funcionários da prefeitura autorizados a ver e atualizar os registros
 create table if not exists public.agentes (
   user_id uuid primary key references auth.users (id) on delete cascade,
@@ -95,13 +100,18 @@ revoke all on public.agentes from anon, authenticated;
 grant select on public.agentes to authenticated;
 
 -- ---------------------------------------------------------------------
--- Visão pública: só posição e situação, sem foto, placa nem endereço.
+-- Visão pública: um ponto por carro, com o total de registros da mesma placa.
+-- Sem foto, placa nem endereço.
 -- Serve para o cidadão ver o que já foi registrado e evitar duplicados.
 -- ---------------------------------------------------------------------
 create or replace view public.registros_publicos as
-  select id, lat, lng, status
-  from public.registros
-  where status <> 'recolhido';
+  select distinct on (chave) id, lat, lng, status, (count(*) over (partition by chave))::int as total
+  from (
+    select id, lat, lng, status, criado_em, coalesce(placa_chave, id::text) as chave
+    from public.registros
+    where status <> 'recolhido'
+  ) r
+  order by chave, criado_em desc;
 
 grant select on public.registros_publicos to anon, authenticated;
 
