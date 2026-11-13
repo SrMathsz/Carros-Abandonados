@@ -101,7 +101,6 @@ export default function FormularioCarro({ ponto, erroLocalizacao, aoUsarLocaliza
     const desc = descricao.trim();
     const end = endereco.trim();
     if (!ponto) return setErro('Marque no mapa onde o carro está.');
-    if (desc.length < 2) return setErro('Descreva o carro com modelo e cor.');
     if (end.length < 3) return setErro('Informe o endereço aproximado.');
     if (placa && !placaValida(placa)) return setErro('A placa parece incompleta. Confira ou deixe em branco.');
 
@@ -131,7 +130,7 @@ export default function FormularioCarro({ ponto, erroLocalizacao, aoUsarLocaliza
       const { error: erroInsert } = await supabase.from('registros').insert({
         id,
         endereco: end,
-        descricao: desc,
+        descricao: desc || null,
         placa: placa || null,
         lat: ponto.lat,
         lng: ponto.lng,
@@ -207,14 +206,14 @@ export default function FormularioCarro({ ponto, erroLocalizacao, aoUsarLocaliza
 
         <div className="field">
           <label className="lbl" htmlFor="f-descricao">
-            Carro
+            Carro (opcional)
           </label>
           <input
             type="text"
             id="f-descricao"
             autoComplete="off"
             maxLength={120}
-            placeholder="Ex.: Versa azul"
+            placeholder="Modelo e cor, se souber. Ex.: Versa azul"
             value={descricao}
             onChange={(e) => setDescricao(e.target.value)}
           />

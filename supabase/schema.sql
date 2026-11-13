@@ -13,7 +13,7 @@ create table if not exists public.registros (
   criado_em     timestamptz not null default now(),
   atualizado_em timestamptz not null default now(),
   endereco      text not null check (char_length(endereco) between 3 and 200),
-  descricao     text not null check (char_length(descricao) between 2 and 120),
+  descricao     text check (descricao is null or char_length(descricao) between 1 and 120),
   placa         text check (placa is null or placa ~ '^[A-Z]{3}-?[0-9][A-Z0-9][0-9]{2}$'),
   lat           double precision not null check (lat between -90 and 90),
   lng           double precision not null check (lng between -180 and 180),

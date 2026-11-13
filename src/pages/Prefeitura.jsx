@@ -265,7 +265,7 @@ function Painel() {
                     icon={iconePin(`var(--st-${r.status})`, escolhido ? 1.35 : 1, r.total)}
                     zIndexOffset={escolhido ? 1000 : 0}
                     eventHandlers={{ click: () => selecionar(r.id, false) }}
-                    title={`${r.endereco} · ${r.descricao}${r.total > 1 ? ` · ${r.total} registros` : ''}`}
+                    title={`${r.endereco}${r.descricao ? ` · ${r.descricao}` : ''}${r.total > 1 ? ` · ${r.total} registros` : ''}`}
                   />
                 );
               })}
@@ -314,7 +314,7 @@ function Painel() {
                 <article key={r.id} data-id={r.id} className={`card ${aberto ? 'sel' : ''}`}>
                   <button type="button" className="card-head" aria-expanded={aberto} onClick={() => selecionar(r.id, true)}>
                     <span className="addr">{r.endereco}</span>
-                    <span className="car">Carro: {r.descricao}</span>
+                    <span className="car">{r.descricao ? `Carro: ${r.descricao}` : 'Carro não descrito'}</span>
                     <span className="row">
                       <Placa valor={r.placa} />
                       <StatusPill status={r.status} />
